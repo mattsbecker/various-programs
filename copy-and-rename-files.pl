@@ -4,6 +4,11 @@ use warnings;
 use File::Copy;
 
 # get the directory from the argument
+my $arg_count = $ARGV;
+if ($arg_count < 3) {
+  print "\n Usage: \n [arg0] Reference folder (where the reference files are) \n [arg1] Output folder (where you want them to go) \n [arg2] name prefix (what you want them named) \n";
+  exit;
+}
 my $the_directory = $ARGV[0];
 my $target_directory = $ARGV[1];
 my $rename_prefix = $ARGV[2];
