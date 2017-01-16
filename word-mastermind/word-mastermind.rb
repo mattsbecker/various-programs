@@ -1,6 +1,5 @@
 #!/usr/bin/env ruby
 
-
 =begin
 
 Mastermind is a code-breaking game for two players. Player 1 (in this case, the computer) uses "code pegs" to choose a
@@ -22,6 +21,11 @@ License information can be found here: https://github.com/first20hours/google-10
 =end
 
 require 'monitor'
+
+trap("INT") {
+    puts "Captured interrupt - shutting down"
+    shut_down
+}
 
 # a simple timer class that will allow us to perform operations on a background thread and report results to the main thread
 ## Timer.new(0.025) do
@@ -59,38 +63,92 @@ class Timer
 end
 
 @main_wordlist = []
+@output_queue = []
 @player_name = nil
 @player_password = nil
 @remaining_attempts = 4
+@loading = false
+@current_guess = nil
+@game_terminating = false
+@password_invalid_string = "Password invalid. Please try again: (Attempt(s) left: #{@remaining_attempts} ): "
 
 def bootstrap
+    puts `clear`
+    #start_output_queue
+    load_wordlist
+    random_word_from_wordlist
+    add_output_to_queue "Password is : #{@password} \n"
     # print game initialization fun, make them enter their name - "username"
-    print_char_by_char "Word Mastermind v 0.0.1 - (C) Matt S Becker \n"
-    print_char_by_char "Enter username: "
+
+    add_output_to_queue "Word Mastermind v 0.0.1 - (C) Matt S Becker \n"
+    add_output_to_queue "Enter username: "
     @player_name = gets.chomp
 
     # make them enter a password that will fail
-    print_char_by_char "Username '#{@player_name}' \nEnter password: "
+    add_output_to_queue "Username '#{@player_name}' \nEnter password: "
 
     @player_password = gets.chop
 
     #password invalid, now they're in the game
-    print_char_by_char "Password invalid. Please try again: (Attempt(s) left: #{@remaining_attempts} ):"
-    start_curses
+    add_output_to_queue @password_invalid_string
+
+    @current_guess = gets.chomp
+    add_output_to_queue "Current guess: #{@current_guess} Password: #{@password} \n"
+    if @current_guess.eql? @password
+        add_output_to_queue "Got it!"
+    else
+        puts "nope"
+        @remaining_attempts -= 1
+        add_output_to_queue @password_invalid_string
+    end
+end
+
+def add_output_to_queue final_output
+            i = 0
+            until i == final_output.size
+                out = final_output[i]
+                print out
+                i+=1
+                sleep 0.025
+            end
 
 end
 
-def print_char_by_char(final_output)
-    i = 0
-    thread = Thread.new do
-        until i == final_output.size
-            out = final_output[i]
-            print out
-            i+=1
-            sleep 0.025
+def start_output_queue
+    # in a seprarate thread, always watch for shifts in our output queue
+    @output_queue_thread = Thread.new do
+        puts "thread! #{@queue_started}"
+        puts "Queue size: #{@output_queue.length}"
+        @queue_started = true
+        while !@game_terminating 
+            final_output = @output_queue[0]
+            i = 0
+            until i == final_output.size
+                out = final_output[i]
+                print out
+                i+=1
+                sleep 0.025
+            end
+            @output_queue.shift
         end
     end
+end
+
+def load_wordlist
+    # load the main wordlist file into memory in a background thread
+    thread = Thread.new do
+        #word_list_file = File.open "words-short.txt"
+        @main_wordlist = IO.readlines("words-short.txt")
+    end
     thread.join
+    add_output_to_queue "Intializing... \n"
+    
+end
+
+def random_word_from_wordlist
+    wordlist_count = @main_wordlist.length
+    random_int = Random.new.rand(wordlist_count)
+    @password = @main_wordlist[random_int].chomp
 end
 
 # start up the main program
@@ -98,4 +156,13 @@ def main
     bootstrap
 end
 
+def shut_down
+    puts "Shutting down..."
+    @output_queue_thread.join unless @output_queue_thread.nil?
+    sleep 1
+    exit
+end
+
 main
+
+
